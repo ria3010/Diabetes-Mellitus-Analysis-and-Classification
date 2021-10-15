@@ -1,0 +1,699 @@
+---
+title: 'm5: Diabetes Mellitus Analysis and Classification'
+author: "Hiloni Mehta, Ria Lulla, Kheman Garg"
+date: \today
+output:
+   pdf_document:
+     latex_engine: xelatex
+---
+
+```{r global_options, echo=FALSE}
+knitr::opts_chunk$set(echo=FALSE, warning=FALSE, message=FALSE, fig.pos = 'H')
+```
+
+## Description of the Problem: 
+Diabetes is one of the health concerns that affects millions of people throughout the world [1]. More than half of the people suffering from it are women [1]. Although diabetes cannot be cured, detecting diabetes at an early stage can help one to take appropriate measures. Hence, the objective of this study is to analyze and successfully predict diabetes in patients based on various medical characteristics of the Pima Indian population. In this research, we make a comprehensive exploration of various machine learning methods used to identify and classify whether the patients have diabetes or not. We compare the different algorithms to obtain the best accuracy. 
+ 
+ 
+## The Function of the System:
+Firstly, we will analyze the features that can be considered as indicators of diabetes and their correlation to diabetes. We also plan to create exploratory data visualizations to summarize the various characteristics of the data. The target variable in the dataset is a binary classifier that shows if the person is diabetic or not.  
+
+Based on the Pima Indian Diabetes dataset, we plan to efficiently perform classification and analyze the performance of various supervised learning algorithms such as Support Vector Machine (SVM), Decision Trees, Logistic Regression, K-Nearest Neighbors (KNN). The data will be split into a training set and testing set and stratification shall be performed to evaluate the performance of the model. Furthermore, the performance of the models will also be analyzed based on various metrics such as accuracy, specificity, precision, F-score, etc. 
+ 
+## Motivation and Benefits of the Study:
+Diabetes Mellitus is a condition that occurs when the blood glucose levels are too high. Glucose is what gives energy to our body [1]. It is the simplest form of sugar that our carbohydrates get broken down into during metabolism [1]. Our body cells need glucose as our source of energy and the process of maintaining a balance of glucose in cells and blood, is taken care of by a hormone called Insulin, which is released by the pancreas [2]. In diabetes, the accumulation of glucose in the blood can cause serious complications including heart diseases, skin diseases, or cardiovascular issues. Detecting diabetes at an early stage is quite challenging as it depends upon various factors. Analysis of the given data set will help us understand and develop various models that can help predict diabetes accurately. Using this predictive tool, one can make a fairly accurate prediction of whether the patient has diabetes or not. 
+
+ \newpage
+ 
+## Data and Core Algorithm:
+
+```{r include=FALSE}
+data <- read.csv("/Users/hilonim/Downloads/diabetes.csv") # reading data set
+rows <- nrow(data)
+cols <- ncol(data)
+```
+
+Our dataset “Pima Indians Diabetes Database” is publicly available at the UCI Machine Learning repository, and is curated by the National Institute of Diabetes and Digestive and Kidney Diseases. The dataset consists of records of the physical conditions of women who are Indian, native Americans in Arizona. All-female patients are at least 21 years old. The dataset contains `r rows`  patient records and `r cols`  features, out of which 8 of them are predictor (dependent) variables and one is a target (independent) variable. These features are as follows:
+ 
+1. Pregnancies: Number of times the patient has been pregnant
+2. Glucose(mg/dl) : Plasma Glucose Concentration levels
+3. Blood Pressure(mm Hg): Diastolic Blood Pressure
+4. Skin Thickness (mm): Triceps Skin Fold Thickness
+5. Insulin($\mu$/ml) : 2-hour Serum Insulin  
+6. BMI (kg/m^2^) : Body Mass Index (Weight/height)
+7. Diabetes Pedigree Function: Measures diabetic genetic relationship and influence on patient’s eventual diabetes risk
+8. Age (years): Age of the patient 
+9. Outcome: Binary classifier which helps to determine whether the patient has diabetes or not
+
+We plan on implementing Support Vector Machine as our core algorithm to build the classification model. In SVM, binary classification can be performed by finding the hyperplane and separating the training data into two classes. The ability of SVM in the case of a nonlinear function is that it can transform highly dimensional data into linearly separable data [3].
+
+## EXPLORATORY DATA ANALYSIS AND VISUALIZATION
+```{r - Load Packages }
+library(ggplot2) #data visualization 
+library(corrplot) #Correlation plot
+library(ggcorrplot) #Correlation plot
+library(mice) #multiple imputation
+library(VIM) #Visualization and Imputation of Missing Values
+library(tidyverse) #data analysis
+library(ggfortify) #Data Visualization tool
+library(datasets)  #pre-loaded dataset
+library(GGally) #graphics plot - extension to ggplot2
+library(caret) # Classification And Regression Training
+library(gbm) # Generalized Boosted Regression Modeling
+library(pROC) #ROC Curve
+```
+
+## Summary of the data:
+
+```{R part - Summary of the data}
+library(datasets)
+
+f_data <- read.csv("/Users/hilonim/Downloads/diabetes.csv") # raw data set
+summary(data)
+
+data$Outcome <- ifelse(data$Outcome == 0, "Not_Diabetic", "Diabetic")
+data$Outcome <- as.factor(data$Outcome)
+
+```
+```{r - Setting up the theme for the visualizations }
+
+palette <- c('#0A2239' ,'#a4d8eb' ,'#1D84B5' ,'#132E32' ,'#176087')
+
+ggplot <- function(...) ggplot2::ggplot(...) +
+  scale_color_manual(values = palette) +
+scale_fill_manual(values = palette) +
+  theme_bw()
+```
+
+\newpage
+## Visualization of the Class Variable
+```{r bar, echo=FALSE ,fig.width=6 , fig.height=4 , fig.cap="\\label{fig:bar}Distribution of Class variable" }
+
+ggplot(data, aes(Outcome, fill = Outcome)) + 
+  geom_bar() + geom_text(aes(label = ..count..), stat = "count", vjust =2.0, colour = "white") + theme_bw() +
+  labs( x = "Diabetes") 
+
+```
+
+
+```{r include=FALSE}
+rows <- nrow(data)
+cols <- ncol(data)
+
+db <- nrow(f_data[f_data$Outcome==1 , ]) #Diabetic patients
+db_percent <- db/nrow(f_data) * 100 #Percentage of Diabetic Patients
+
+Non_db <- nrow(f_data[f_data$Outcome==0 , ]) # Non-Diabetic patients
+db1_percent <- Non_db/nrow(f_data) * 100 #% of Non-Diabetic Patients
+```
+
+The dataset has `r db` (`r db_percent`%)   women who have diabetes and the remaining  `r Non_db` (`r db1_percent`%) who have not been diagnosed with the disease. The bar plot provides useful insights on the distribution of the target class i.e the value of the Outcome as Diabetic or Non-diabetic. We can see that there are more samples of women that are not diabetic than the ones that are diabetic.
+
+## Checking for Missing Values
+
+```{r part - Checking for NA values, include=FALSE}
+# Checking for NA values in the dataset 
+print(all(!is.na(data)))
+
+# Replacing the Zero Values to NA except for Pregnancies and Outcome
+
+columns <- colnames(data)[!colnames(data) %in% c("Pregnancies", "Outcome")]
+Empty_data <- data[columns] == 0
+data[columns][Empty_data] <- NA
+```
+```{r part - Missing Value}
+# Printing the number of missing values in the dataset
+Missing_values <- apply(Empty_data, 2, sum)
+Missing_values
+
+```
+
+The above analysis indicates the number of zeroes present in the dataset. An analysis on zero values would not correctly classify the dataset. Removing these missing values is not appropriate in this case due to the small data size. Replacing the missing values with mean or median introduces bias in the data which causes a decrease in variance. [4] [5]
+
+\newpage 
+
+## Visualization of the missing data
+
+The plot shows that almost 51% of the samples are not missing any information, 25% of the data missing is from the Insulin and SkinThickness values, and the remaining ones have significantly less number of missing values(< 11%). 
+
+```{r fig1 , echo=FALSE ,fig.width=5 , fig.height=4 , fig.cap="\\label{fig:fig1} Missing Data Pattern"}
+library(VIM)
+aggr_plot <- aggr(data, col=c('LIGHTBLUE', 'LIGHTBLUE4'), numbers=TRUE, labels=names(data), cex.axis=.6, gap=2, ylab=c("Histogram of missing data","Pattern"))
+```
+
+## Imputing the Missing Values using Mice
+
+```{r, echo=TRUE, results='hide'}
+set.seed(123)
+# Multiple imputation Using MICE
+mice_data <- mice(data, m = 5, method='pmm') 
+
+```
+
+The MICE (Multivariate Imputation via Chained Equations) package in R, helps in creating multiple imputations as compared to a single imputation (such as mean). This package is used to replace missing values with plausible values to estimate more realistic regression coefficients that are not affected by missing values. It takes care of the uncertainty in missing values and obtains approximately unbiased estimates [4] [5].
+
+The method of imputation in the MICE package that we used is Predictive Mean Matching (PMM) and the number of imputations is 5, which are default values. "Predictive Mean Matching (PMM) is similar to the regression method except that for each missing value, it fills in a value randomly from among the observed donor values from an observation whose regression-predicted values are closest to the regression-predicted value for the missing value from the simulated regression model." (Heitjan and Little 1991; Schenker and Taylor 1996) [8] [9]
+
+```{r, echo=FALSE, results='hide'}
+
+# Save the complete imputation output
+mice_imputed <- complete(mice_data)
+
+# Make sure there is no missing data
+sum(is.na(mice_imputed))
+
+# mice_imputed$Outcome <- ifelse(mice_imputed$Outcome == 0, "NotDiabetic", "Diabetic")
+# mice_imputed$Outcome <- as.factor(mice_imputed$Outcome)
+```
+
+\newpage
+## Comparing the density plots after multiple imputation
+
+``` {r figdensity , echo=FALSE ,fig.width=6 , fig.height=5 , fig.cap="\\label{fig:figdensity} Density Plots comparison before and after multiple imputation"}
+library(ggplot2)
+library(gridExtra)
+
+p1 <- ggplot(f_data, aes(x = SkinThickness)) +     geom_density(alpha = 0.5) +    theme(legend.position = "bottom") +  labs(x = "SkinThickness (original)", y = "Density") 
+
+p2 <- ggplot(mice_imputed, aes(x = SkinThickness)) +     geom_density(alpha = 0.5) +    theme(legend.position = "bottom") +  labs(x = "SkinThickness(imputed)", y = "Density") 
+
+p3 <- ggplot(f_data, aes(x = Insulin)) +     geom_density(alpha = 0.5) +    theme(legend.position = "bottom") +  labs(x = "Insulin (original)", y = "Density") 
+
+p4 <- ggplot(mice_imputed, aes(x = Insulin)) +     geom_density(alpha = 0.5) +    theme(legend.position = "bottom") +  labs(x = "Insulin(imputed)", y = "Density") 
+
+p5 <- ggplot(f_data, aes(x = BMI)) +     geom_density(alpha = 0.5) +    theme(legend.position = "bottom") +  labs(x = "BMI (original)", y = "Density") 
+
+p6 <- ggplot(mice_imputed, aes(x = BMI)) +     geom_density(alpha = 0.5) +    theme(legend.position = "bottom") +  labs(x = "BMI(imputed)", y = "Density") 
+
+p7 <- ggplot(f_data, aes(x = BloodPressure)) +     geom_density(alpha = 0.5) +    theme(legend.position = "bottom") +  labs(x = "BloodPressure (original)", y = "Density") 
+
+p8 <- ggplot(mice_imputed, aes(x = BloodPressure)) +     geom_density(alpha = 0.5) +    theme(legend.position = "bottom") +  labs(x = "BloodPressure (imputed)", y = "Density")
+
+p9 <- ggplot(f_data, aes(x = Glucose)) +     geom_density(alpha = 0.5) +    theme(legend.position = "bottom") +  labs(x = "Glucose (original)", y = "Density") 
+
+p10 <- ggplot(mice_imputed, aes(x = Glucose)) +     geom_density(alpha = 0.5) +    theme(legend.position = "bottom") +  labs(x = "Glucose (imputed)", y = "Density")
+
+
+grid.arrange(p1, p2, p3, p4,p5, p6,p7,p8,p9,p10, nrow =5, ncol=2)
+```
+
+We can see that the density plots for original data distributions in comparison to imputed data distribution for the variables haven't changed significantly. Hence, the multiple imputed values using MICE package can be considered as plausible values. 
+
+\newpage
+## UNIVARIATE ANALYSIS
+## Density Plots
+
+```{r density , echo=FALSE ,fig.width= 7 , fig.height=6 , fig.cap="\\label{fig:density} Density Plot Visualization"}
+mice_imputed %>%
+  gather("key", "value", Pregnancies:Age) %>%
+  ggplot(aes(x = value, fill = Outcome)) +
+    facet_wrap(vars(key), ncol = 3, scales = "free") +
+    geom_density(size = 1, alpha = 0.8) 
+
+```
+
+## Q-Q Plot
+
+
+```{r normality, echo=FALSE ,fig.width= 3.5 , fig.height=4, fig.cap="\\label{fig:normality} Q-Q Plot "}
+library(nortest) #Tests for normality
+qqnorm(scale(data$BMI), main = "Normal Q-Q Plot for BMI",
+       xlab = "Theoretical Quantiles", ylab = "BMI")
+qqnorm(scale(data$SkinThickness), main = "Normal Q-Q Plot for SkinThickness",
+       xlab = "Theoretical Quantiles", ylab = "SkinThickness")
+```
+
+
+
+The BMI and SkinThickness distribution  of  both  non-diabetic  and diabetic people are roughly close to normal distribution. According to the qqplot, we can see that the residuals are normally distributed. Thus, we can say that people with high BMI and more SkinThickness are more likely to be diabetic.
+
+\newpage
+
+## Box Plots
+```{r boxplot , echo=FALSE ,fig.width=7 , fig.height=6, fig.cap="\\label{fig:boxplot} Box Plot Visualization"}
+mice_imputed %>%
+  gather("key", "value", Pregnancies:Age) %>%
+  ggplot(aes(x = value, fill = Outcome)) +
+    facet_wrap(vars(key), ncol = 3, scales = "free") +
+    geom_boxplot(alpha = 0.8) 
+```
+
+Box Plots play an important role in statistical analysis. The middle value is the median and the box represents the 25th and 75th percentile of the data. The dots are the outlier values and the whiskers give an idea about the data distribution. We can see that there are a few outliers in each plot. Box plots summarize the distribution of each attribute relating to the class variable.  
+
+From the figure, we can say that without controlling for age, women with more number of pregnancies maybe at a risk of contracting diabetes. Similarly, glucose concentration among diabetic women is seen to be more than non diabetic women. The median glucose value for a diabetic patient is around 140mg/dl. The age box plot for non diabetic women has some outliers but we see that age can be considered as an important factor in determining diabetes.
+
+\newpage
+
+## Correlation Plot
+```{r figcorr1 , echo=FALSE ,fig.width=7 , fig.height=6 , fig.cap="\\label{fig:figcorr1} Correlation Plot for all Variables"}
+data_cor <- round(cor(f_data[1:9]),2)
+# data_cor
+library(ggcorrplot)
+ggcorrplot(data_cor, hc.order = TRUE, lab = TRUE) +   scale_fill_gradient2(mid="#FBFEF9",low="#0C6291",high="#176087", limits=c(-1,1))
+```
+
+According to the correlation plot, we can also see that the associations between target variable Outcome and independent variables, such as Insulin, BMI and Age are relatively high.
+
+For the correlation between the predictor variables, we see that Skin Thickness - BMI, Glucose - Insulin, and Pregnancies - Age have a moderate linear correlation. Diabetes Pedigree Function appears to have little correlation with other predictor variables. 
+
+
+\newpage
+
+## BIVARIATE ANALYSIS
+```{r scatterplot, echo=FALSE ,fig.width=9 , fig.height=8 , fig.cap="\\label{fig:scatterplot} Using Scatterplot to study Bivariate Relationship "}
+ a <- ggplot(data = mice_imputed, mapping = aes(x = Glucose,y=Insulin)) + geom_point(mapping = aes(color = Outcome),alpha = 0.4) + geom_smooth() +    theme(legend.position = "bottom") 
+b <- ggplot(data = mice_imputed, mapping = aes(x = Pregnancies,y=Age)) + geom_jitter(mapping = aes(color = Outcome),alpha = 0.4) + geom_smooth() +    theme(legend.position = "bottom") 
+c <- ggplot(data = mice_imputed, mapping = aes(x = BMI,y=SkinThickness)) + geom_point(mapping = aes(color = Outcome),alpha = 0.4) + geom_smooth() +    theme(legend.position = "bottom") 
+grid.arrange(a,b,c, nrow = 2, ncol =2)
+
+```
+
+From scatter plots, BMI & Skin Thickness, Pregnancies & Age, and Glucose & Insulin seem to have positive linear relationships. 
+It is evident from the above plots that as the glucose and insulin increase, there is a higher risk of the patient being diabetic. As the number of pregnancies and age in women increases, they are more prone to diabetes. Similarly, BMI over 30kg/m^2^ with Skin Thickness above 20mm are seen as important factors in Diabetic patients.
+
+\newpage
+## Summary of the data visualizations
+
+Overall, we can say that from the above visualizations Age, more number of pregnancies, increased BMI and glucose levels along with skin thickness play an important role in detecting Diabetes in patients. However, we take into account all the predictor variables while classifying the dataset in order to correctly predict the whether the patient has diabetes or not.Overall, we can say that from the above visualizations Age, more number of pregnancies, increased BMI, and glucose levels along skin thickness play an important role in detecting Diabetes in patients. However, there might be some hidden relationships that will be uncovered upon further testing. Therefore, we will take all the predictor variables while classifying the dataset in order to correctly predict whether the patient has diabetes or not.
+
+\newpage
+##  ALGORITHM TESTING
+
+Currently we have implemented three candidate algorithms: Logistic Regression, Support Vector Machine(SVM),  and K-Nearest Neighbors. These statistical learning algorithms will be examined based on the performance metrics. 
+
+## Splitting the data into train and test sets.
+We split our data into test and train data frames and the splitting criteria is 70%-30%.  
+
+
+```{r - Split into train/test, echo=TRUE, results='hide'}
+#store rows for partition
+partition <- caret::createDataPartition(y = mice_imputed$Outcome, times = 1, p = 0.7, list = FALSE)
+
+# create training data set
+train_set <- mice_imputed[partition,]
+
+# create testing data set, subtracting the rows partition to get remaining 30% of the data
+test_set <- mice_imputed[-partition,]
+```
+
+## Cross-Validation
+Instead of a single train-test dataset, we use cross validation to train our models. We use this method to reduce the variance introduced due to train-test splits. Cross validation is used to split the dataset into k-parts. Each split is called a fold. Typically, the value of k = 10. The algorithm is trained on a set of k folds and this is repeated multiple times so that every fold is given a chance to be held back as a part of the test dataset. After this execution, we have k different scores and we can summarize the average performance.
+
+## Algorithm 01: Logistic Regression 
+
+The first candidate algorithm we study is Logistic Regression. Logistic regression is used to predict the class (or category) of individuals based on one or multiple predictor variables (x). It is used to model a binary outcome, that is a variable, which can have only two possible values: 0 or 1, yes or no. Logistic regression belongs to a family, named Generalized Linear Model (GLM), developed for extending the linear regression model [10] [11].We use Logistic Regression for binary classification below. We make use of the CARET package to train our dataset with the GLM model. The logit model and confusion matrix are as follows: 
+
+```{r}
+
+library(cvTools)
+#training the model
+model_glm <- train(Outcome ~., data = train_set,
+                         method = "glm", 
+                         metric = "ROC", 
+                         family = binomial(link="logit"),
+                         tuneLength = 10,
+                         trControl = trainControl(method = "repeatedcv", number = 10, repeats =5,classProbs = T, summaryFunction = twoClassSummary ),
+                         preProcess = c("center","scale","pca"))
+
+#printing the model
+model_glm
+
+
+#predicting 
+predict_glm <- predict(model_glm, test_set[,-9])
+
+
+
+acc_glm_fit <- confusionMatrix(predict_glm, test_set$Outcome )$overall['Accuracy']
+acc_glm <- acc_glm_fit * 100
+
+#Confusion Matrix and Statistic
+cm_glm <- confusionMatrix(predict_glm, test_set$Outcome)
+cm_glm
+
+# Prediction Probabilities
+pred_prob_glm <- predict(model_glm, test_set, type="prob")
+
+# ROC value
+roc_glm <- roc(test_set$Outcome, pred_prob_glm$Diabetic)
+
+```
+
+The resulting accuracy in this model is `r acc_glm` %.
+
+## Algorithm 02: Support Vector Machine(SVM)
+
+Support Vector Machine algorithm is based on the idea of identifying a hyperplane that enables to classify the data points. A plane with a maximum margin is chosen in order to maximize the certainty with which data points are classified into respective classes.[12]
+We use SVM for binary classification below. We make use of the CARET package to train our dataset with the SVM model. Different kernel techniques can be used by modifying the method of the function. Below, we use the 'linearSVM' method with cost = 1.
+```{r}
+svm_Linear <- train(Outcome ~., data = train_set, 
+                    method = "svmLinear",
+                    metric = "ROC",
+                    tuneLength = 5,
+                    trControl = trainControl(method = "repeatedcv", number = 10, classProbs = T, summaryFunction = twoClassSummary, repeats = 5 ),
+                    preProcess = c("center", "scale"))
+#model
+svm_Linear
+
+#test model
+predictSVM <- predict(svm_Linear, test_set[,-9])
+
+#Confusion matrix
+cm_svm <- confusionMatrix(predictSVM, test_set$Outcome)
+cm_svm
+#accuracy
+acc_svm_fit <- confusionMatrix(predictSVM, test_set$Outcome )$overall['Accuracy']
+acc_svm <- acc_svm_fit * 100
+
+# Prediction Probabilities
+pred_prob_svm <- predict(svm_Linear, test_set, type="prob")
+
+# ROC value
+roc_svm <- roc(test_set$Outcome, pred_prob_svm$Diabetic)
+
+```
+The resulting accuracy in this model is `r acc_svm` %.
+
+## Algorithm 03: K-Nearest Neighbor (KNN)
+
+KNN is a lazy and simple algorithm that is good at producing results with small dataset. This algorithm considers that similar items exist in the same space or near each other. The K value plays a big role in calculating accuracy as it defines the number of data points that can be selected from that space[14]. In order to do the KNN analysis library "e1071" is selected which can help in calculating the optimal value of k. 
+
+```{r - KNN Algrotihm}
+library(class)
+library(e1071)
+
+pima.train.lab <- train_set[,9]
+pima.test.lab <- test_set[,9]
+
+pima.train.data <- train_set[,1:8]
+pima.test.data <- test_set[,1:8]
+ 
+knn.pima <- train(Outcome ~ ., data = train_set,
+                   method = "knn",
+                   preProcess = c("center", "scale"),
+                   trControl = trainControl(method = "repeatedcv", number = 10, repeats = 5,
+                    classProbs = T, summaryFunction = twoClassSummary), 
+                     metric = "ROC", tuneLength = 10)
+
+knn.pima  
+
+```
+In order to calculate the value of k, we have used 10 fold repeated cross-validation with repeats = 5 and calculated the ROC value where k at which the ROC is maximum is considered to be the optimal k value. After calculating k the accuracy is calculated with the given train data and test data and further a confusion matrix is drawn.
+
+```{r - KNN Continued}
+learn_knn <- knn(train = pima.train.data, test = pima.test.data, cl = pima.train.lab,k= 17, prob = TRUE)
+
+
+
+
+predict_knn <- predict(knn.pima, test_set[,-9])
+
+cm_knn <- confusionMatrix(predict_knn, test_set$Outcome)
+cm_knn
+
+acc_knn_fit <- confusionMatrix(predict_knn, test_set$Outcome )$overall['Accuracy']
+acc_knn <- acc_knn_fit * 100
+
+# Prediction Probabilities
+pred_prob_knn <- predict(knn.pima, test_set, type="prob")
+
+# ROC value
+roc_knn <- roc(test_set$Outcome, pred_prob_knn$Diabetic)
+```
+
+The resulting accuracy in this model is `r acc_knn` %.
+
+\newpage
+## Algorithm 04: Multivariate Adaptive Regression Splines (MARS) 
+
+
+Linear models can be extended to capture non-linear relations. Multivariate Adaptive Regression Splines (MARS)(Friedman 1991) makes this possible using polynomial regression or step functions.Since most real-world data is non-linear in nature, this algorithm allows us to capture the non-linear relationship by assessing the non-linear functions. Thus, Multivariate adaptive regression splines(MARS) operates by assessing the cutpoints or knots that are similar to step functions. This process evaluates each data point for every predictor as a knot and creates a linear regression model with the candidate features.[15] For this model, we will be using the 'earth' library.
+
+```{r }
+library(earth)
+#training the model
+
+model_mars <- train(Outcome ~., data = train_set,
+                         method = "earth", 
+                         metric = "ROC", 
+                         tuneLength = 10,
+                         trControl = trainControl(method = "repeatedcv", number = 10,repeats = 5, classProbs = T, summaryFunction = twoClassSummary ),
+                         preProcess = c("center","scale"))
+
+#printing the model
+model_mars
+#predicting 
+predict_mars <- predict(model_mars, test_set[,-9])
+
+
+
+acc_mars_fit <- confusionMatrix(predict_mars, test_set$Outcome)$overall['Accuracy']
+acc_mars <- acc_mars_fit * 100
+
+#Confusion Matrix and Statistic
+cm_mars <- confusionMatrix(predict_mars, test_set$Outcome)
+cm_mars
+
+# Prediction Probabilities
+pred_prob_mars <- predict(model_mars, test_set, type="prob")
+
+# ROC value
+roc_mars <- roc(test_set$Outcome, pred_prob_mars$Diabetic)
+
+```
+The resulting accuracy for this model is `r acc_mars` %.
+
+## Algorithm 05: Core Algorithm - Random Forest Algorithm
+
+Random forest algorithm consists of a large number of individual decision trees which function as an ensemble. Every decision tree is made from randomly selecting data from the original data. This is done by randomly sampling a feature set. At the end, class prediction is made by aggregating the predictions from individual trees and a majority vote is calculated to determine the model's class[16]. Thus, the correlation between trees is reduced and this provides higher efficiency. We use the ranger method below which is a fast implementation of random forests [17].
+
+```{r}
+
+library(randomForest) #random forests
+
+
+learn_rforest <- train(Outcome ~., data = train_set,
+                         method = "ranger",
+                         metric = "ROC",
+                         trControl = trainControl(classProbs = T, summaryFunction = twoClassSummary ),
+                          )
+learn_rforest
+
+# prediction on Test data set
+predict_rf <- predict(learn_rforest, test_set)
+
+# Confusion Matrix 
+cm_rf <- confusionMatrix(predict_rf, test_set$Outcome, positive="Diabetic")
+
+acc_rf_fit <- confusionMatrix(predict_rf, test_set$Outcome )$overall['Accuracy']
+acc_rf <- acc_rf_fit * 100
+
+
+# Prediction Probabilities
+pred_prob_rf <- predict(learn_rforest, test_set, type="prob")
+
+# ROC value
+roc_rf <- roc(test_set$Outcome, pred_prob_rf$Diabetic)
+
+
+
+# Confusion Matrix for Random Forest Model
+cm_rf
+```
+The resulting accuracy in this model is `r acc_rf` %.
+
+## Random Forest Algorithm (Fine Tuned)
+
+Now, we try to improve the Random Forest algorithm in a way that it boosts the performance for our dataset.
+
+Tuning algorithm is essential since it helps in building the model. In random forest, we cannot understand our results prior because the model is randomly processing, the error is minimized and an optimal tree is saved from the collection for the model.Tuning algorithm helps control the training process and get better accuracy results.  
+
+```{r xyplot, echo=FALSE ,fig.width=6 , fig.height=5 , fig.cap="\\label{fig:xyplot0} Random forest model using tuning parameter mtry"}
+
+set.seed(1)
+tunegrid <- expand.grid(.mtry=c(1:15))
+
+rftune <- train(Outcome ~.,data = train_set, method = "rf",metric= "ROC", tuneGrid = tunegrid,trControl = trainControl(method = "repeatedcv",number = 10, repeats=5,classProbs = T,summaryFunction = twoClassSummary),preProcess = c("center","scale"))
+
+rftune
+
+plot(rftune)
+
+```
+
+There are two parameters of the random forest model that are most likely to have the biggest effect on the accuracy of the model. Perhaps they are mtry and ntree. Either of them can be used to tune the function or model.
+mtry: Number of variables randomly collected to be sampled at every split.
+ntree: Number of branches to grow after every split time.
+ 
+Grid search is an effective approach to hyperparameter tuning that will build and evaluate a model for each combination of algorithm parameters specified in a grid [18].In this we are only tuning on one parameter mtry, the grid search only has one dimension as vector.
+
+```{r}
+# prediction on Test data set
+predict_rfTune <- predict(rftune, test_set)
+
+
+acc_rf_fit <- confusionMatrix(predict_rfTune, test_set$Outcome )$overall['Accuracy']
+acc_rfTune <- acc_rf_fit * 100
+
+
+# Prediction Probabilities
+pred_prob_rfTune <- predict(rftune, test_set, type="prob")
+
+# ROC value
+roc_rfTune <- roc(test_set$Outcome, pred_prob_rfTune$Diabetic)
+
+
+# Confusion Matrix 
+cm_rfTune <- confusionMatrix(predict_rfTune, test_set$Outcome, positive="Diabetic")
+
+# Confusion Matrix for Random Forest Model
+cm_rfTune
+```
+
+The resulting accuracy in this model is `r acc_rfTune` %.
+
+This results recommends us the best optimal mtry value with highest roc value. Hence, we can see that the use of grid search is effectively seen and we successfully increased the accuracy for random forest algorithm. This is best tuned model that we receive from these methods.
+
+
+\newpage
+\subsection{Algorithms Comparison}
+
+\begin{table}[hbt!]
+\centering
+\caption{Performance Comparison of  Algorithms}
+\resizebox{0.7\textwidth}{!}{%
+\label{tab:my-table1}
+\begin{tabular}{|c|c|c|}
+\hline
+Algorithms             & Accuracy       \\ \hline
+Logistic Regression(GLM)         & `r acc_glm`\%   \\ \hline
+Support Vector Machine(SVM)               & `r acc_svm`\%   \\ \hline
+K-Nearest Neighbours(KNN) & `r acc_knn`\% \\ \hline
+MARS & `r acc_mars`\% \\ \hline
+Random Forest & `r acc_rf`\% \\ \hline
+Random Forest (Fine Tuned) & `r acc_rfTune`\% \\ \hline
+\end{tabular}%
+}
+\end{table}
+
+\newpage
+
+## Performance Metrics
+We compare the models based on the accuracy and performance measures of Sensitivity, Specificity and AUC.
+```{r - Comparison of models - Table, include=TRUE}
+
+LogisticRegression <- c( cm_glm$byClass['Sensitivity'], cm_glm$byClass['Specificity'], cm_glm$byClass['F1'], cm_glm$byClass['Precision'],roc_glm$auc)
+
+SVM <- c( cm_svm$byClass['Sensitivity'], cm_svm$byClass['Specificity'], cm_svm$byClass['F1'],cm_svm$byClass['Precision'],roc_svm$auc)
+
+KNN <- c( cm_knn$byClass['Sensitivity'], cm_knn$byClass['Specificity'],cm_knn$byClass['F1'],cm_knn$byClass['Precision'], roc_knn$auc)
+
+MARS <- c(cm_mars$byClass['Sensitivity'], cm_mars$byClass['Specificity'], cm_mars$byClass['Precision'], 
+                cm_mars$byClass['F1'], roc_mars$auc)
+
+RF <- c(cm_rf$byClass['Sensitivity'], cm_rf$byClass['Specificity'], cm_rf$byClass['Precision'], cm_rf$byClass['F1'], roc_rf$auc)
+
+RF_Tuned <- c(cm_rfTune$byClass['Sensitivity'], cm_rfTune$byClass['Specificity'], cm_rfTune$byClass['Precision'], 
+                cm_rfTune$byClass['F1'], roc_rfTune$auc)
+
+all_results <- data.frame(rbind( LogisticRegression, SVM, KNN, MARS, RF, RF_Tuned))
+
+names(all_results) <- c("Sensitivity/Recall", "Specificity","F1","Precision", "AUC")
+
+all_results
+```
+\newpage
+## Box Plot Comparison 
+
+We are going to compare the models over the training and resampling data with repeated cross validation. We have tried to compare using two metrics, Accuracy and Kappa value.
+
+
+```{r bwplot0, echo=FALSE ,fig.width=6 , fig.height=5 , fig.cap="\\label{fig:bwplot0} Comparison of Accuracies"}
+control <- trainControl(method="repeatedcv", number=10, repeats=3)
+set.seed(7)
+modelrf <- train(Outcome~., data=train_set, method="ranger", trControl=control)
+set.seed(7)
+modelglm <- train(Outcome~., data=train_set, method="glm", trControl=control)
+set.seed(7)
+modelsvm <- train(Outcome~., data=train_set, method="svmLinear", trControl=control,verbose=FALSE)
+set.seed(7)
+modelknn <- train(Outcome~., data=train_set, method="knn", trControl=control)
+set.seed(7)
+modelmars <- train(Outcome~., data=train_set, method="earth", trControl=control)
+results <- resamples(list(RF=modelrf, glm =modelglm, SVM=modelsvm,mars=modelmars, knn=modelknn))
+bwplot(results)
+```
+
+\newpage
+Further, we also modify the comparisons according to ROC metrics.
+
+```{r rocplot, echo=FALSE, fig.width=8 , fig.height=5, fig.cap="\\label{fig:rocplot} Comparison of ROC metrics"}
+control <- trainControl(method="repeatedcv", number=10, repeats=5,classProbs = TRUE,summaryFunction = twoClassSummary)
+set.seed(7)
+modelrf <- train(Outcome~., data=train_set, method="ranger", trControl=control, metric="ROC")
+set.seed(7)
+modelglm <- train(Outcome~., data=train_set, method="glm", trControl=control, metric="ROC")
+set.seed(7)
+modelsvm <- train(Outcome~., data=train_set, method="svmLinear", trControl=control,verbose=FALSE, metric="ROC")
+set.seed(7)
+modelknn <- train(Outcome~., data=train_set, method="knn", trControl=control, metric="ROC")
+set.seed(7)
+modelmars <- train(Outcome~., data=train_set, method="earth", trControl=control, metric="ROC")
+results <- resamples(list(RF=modelrf, glm =modelglm, SVM=modelsvm,mars=modelmars, knn=modelknn))
+bwplot(results)
+```
+
+
+## Summary
+
+The above model comparison uses accuracy, ROC values, sensitivity, specificity, recall, precision and F1-score. For a clear visualization and to understand the distribution of each metric, we have illustrated box and whisker plots above. Random Forest algorithm when fine tuned with the help of grid search gives us the highest accuracy of `r acc_rfTune` % as compared to the other models.However, model evaluation is based on several other performance metrics.
+
+We can see from the table above that the Random Forest algorithm gives a higher sensitivity (recall) of `r cm_rfTune$byClass['Sensitivity']*100`% which provides a useful insight into identifying true positive rates. This means that the chances of providing correct information on a person having diabetes is higher. Another important metric called F-1 score which is the harmonic mean of the precision and recall [19] is also the highest `r cm_rfTune$byClass['F1']*100`% among all other models.
+
+\newpage
+
+## References
+[1] A. Agarwal and A. Saxena, "Analysis of Machine Learning Algorithms and Obtaining Highest Accuracy for Prediction of Diabetes in Women," 2019 6th International Conference on Computing for Sustainable Global Development (INDIACom), 2019, pp. 686-690.
+
+[2] Gowda Karegowda Ashs, A.S Manjunath and M.S. Jayaram, "Application of Genetic Algorithm Optimized Neural Network Connection Weights For Medical Diagnosis of Pima Indians Diabetes", International Journal on Soft Computing (IJSC), vol. 2, no. 2, May 2011.
+ 
+[3] Utkin, L. V., Chekh, A. I., & Zhuk, Y. A. (2016). “Binary classification SVM-based algorithms with interval-valued training data using triangular and Epanechnikov kernels. Neural Networks, 80, 53–66. doi:10.1016/j.neunet.2016.04.005
+ 
+[4] Pearson, R.. “The problem of disguised missing data.” SIGKDD Explor. 8 (2006): 83-92 https://dl.acm.org/doi/10.1145/1147234.1147247.  
+ 
+[5] Ramezani, Rohollah & Maadi, Mansoureh & Khatami, Seyedeh. (2017). A novel hybrid intelligent system with missing value imputation for diabetes diagnosis. Alexandria Engineering Journal. 2018, Pages 1883-1891,  https://doi.org/10.1016/j.aej.2017.03.043.
+ 
+[6] R. Katarya and S. Jain, "Comparison of Different Machine Learning Models for diabetes detection," 2020 IEEE International Conference on Advances and Developments in Electrical and Electronics Engineering (ICADEE), 2020, pp. 1-5, doi: 10.1109/ICADEE51157.2020.9368899.
+ 
+[7] R. Sehly and M. Mezher, "Comparative Analysis of Classification Models for Pima Dataset," 2020 International Conference on Computing and Information Technology (ICCIT-1441), 2020, pp. 1-5, doi: 10.1109/ICCIT-144147971.2020.9213821.
+
+[8] Heitjan DF, Little RJA. Multiple imputation for the fatal accident reporting system. J R Stat Soc Series C (Appl Stat) 1991;40(1):13–29.
+
+[9] Schenker N, Taylor JMG. Partially parametric techniques for multiple imputation. Comput Stat & Data Anal. 1996;22(4):425–446. doi: 10.1016/0167-9473(95)00057-7. 
+
+[10] Bruce, Peter, and Andrew Bruce. 2017. Practical Statistics for Data Scientists. O’Reilly Media.
+
+[11] James, Gareth, Daniela Witten, Trevor Hastie, and Robert Tibshirani. 2014.An Introduction to Statistical Learning: With Applications in R. Springer Publishing Company, Incorporated.
+
+[12] Simon Tong, Daphne Koller Support Vector Machine Active Learning with applications to text classification. doi : 10.1162/153244302760185243 
+
+[13] S. C. Gupta and N. Goel, "Performance enhancement of diabetes prediction by finding optimum K for KNN classifier with feature selection method," 2020 Third
+
+[14] Friedman, Jerome H. 1991. “Multivariate Adaptive Regression Splines.” The Annals of Statistics. JSTOR, 1–67.
+
+[15] http://uc-r.github.io/mars  
+
+[16] https://www.researchgate.net/publication/259235118_Random_Forests_and_Decision_Trees 
+
+[17] https://www.rdocumentation.org/packages/ranger/versions/0.13.1/topics/ranger
+
+[18] https://machinelearningmastery.com/tune-machine-learning-algorithms-in-r/
+
+[19] https://deepai.org/machine-learning-glossary-and-terms/f-score 
+
+
+
+
+
+
+
